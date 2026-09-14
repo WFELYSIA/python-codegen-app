@@ -16,6 +16,11 @@ import {
 import MessageBubble from "./components/MessageBubble";
 import SettingsDialog from "./components/SettingsDialog";
 import Sidebar from "./components/Sidebar";
+import {
+  getDirectConfig,
+  isStaticDeploy,
+  loadDirectConfig,
+} from "./lib/directConfig";
 import { parseSseBuffer } from "./lib/sse";
 import {
   loadConversations,
@@ -64,6 +69,19 @@ export default function App() {
   }, [conversations]);
 
   useEffect(() => {
+    if (isStaticDeploy()) {
+      const data = loadDirectConfig();
+      setConfig(data);
+      if (
+        !openedSettingsRef.current &&
+        (!data.hasApiKey || !data.baseUrl || !data.model)
+      ) {
+        openedSettingsRef.current = true;
+        setSettingsOpen(true);
+      }
+      return;
+    }
+
     fetch("/api/config")
       .then(async (response) => {
         if (!response.ok) {
@@ -212,12 +230,14 @@ export default function App() {
     };
 
     try {
-      const response = await fetch("/api/chat/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, messages: history }),
-        signal: controller.signal,
-      });
+      const response = isStaticDeploy()
+        ? await requestStaticStream(history, controller.signal)
+        : await fetch("/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversationId, messages: history }),
+            signal: controller.signal,
+          });
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as
@@ -443,4 +463,45 @@ function EmptyState({ onPick }: { onPick: (value: string) => void }) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+async function requestStaticStream(
+  history: { role: "user" | "assistant"; content: string }[],
+  signal: AbortSignal,
+): Promise<Response> {
+  const config = getDirectConfig();
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new Error("API 尚未配置完整");
+  }
+
+  const baseUrl = config.baseUrl.replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: "system", content: config.systemPrompt },
+        ...history,
+      ],
+      temperature: config.temperature,
+      max_tokens: config.maxTokens,
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: { message?: string } }
+      | null;
+    throw new Error(
+      payload?.error?.message ?? `自定义 API 请求失败（${response.status}）`,
+    );
+  }
+
+  return response;
 }

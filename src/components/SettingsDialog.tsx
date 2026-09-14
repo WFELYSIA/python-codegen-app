@@ -1,5 +1,6 @@
 import { KeyRound, LoaderCircle, Save, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import { isStaticDeploy, saveDirectConfig } from "../lib/directConfig";
 import type { ApiConfigForm, PublicApiConfig } from "../types";
 
 interface SettingsDialogProps {
@@ -54,6 +55,12 @@ export default function SettingsDialog({
 
     setSaving(true);
     try {
+      if (isStaticDeploy()) {
+        onSaved(saveDirectConfig(form));
+        onClose();
+        return;
+      }
+
       const payload: Record<string, unknown> = {
         baseUrl: form.baseUrl.trim(),
         model: form.model.trim(),
@@ -142,7 +149,9 @@ export default function SettingsDialog({
             hint={
               config?.hasApiKey
                 ? "已保存密钥，留空则保持不变"
-                : "密钥仅保存在本地服务端"
+                : isStaticDeploy()
+                  ? "仅保存在当前浏览器，Pages 静态模式下存在暴露风险"
+                  : "密钥仅保存在本地服务端"
             }
           >
             <input
