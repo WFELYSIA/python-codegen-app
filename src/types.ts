@@ -1,11 +1,17 @@
 export type MessageRole = "user" | "assistant";
 export type MessageStatus = "pending" | "streaming" | "done" | "error";
 
+export interface MessageAttachment {
+  name: string;
+  content: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   status: MessageStatus;
+  attachments?: MessageAttachment[];
 }
 
 export interface Conversation {

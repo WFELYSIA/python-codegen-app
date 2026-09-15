@@ -1,4 +1,4 @@
-import type { Conversation, MessageRole } from "../types";
+import type { Conversation, MessageAttachment, MessageRole } from "../types";
 
 const STORAGE_KEY = "pycodegen.conversations.v1";
 
@@ -48,11 +48,13 @@ export function makeMessage(
   role: MessageRole,
   content: string,
   status: "pending" | "streaming" | "done" | "error" = "done",
+  attachments?: MessageAttachment[],
 ): Conversation["messages"][number] {
   return {
     id: createId(),
     role,
     content,
     status,
+    ...(attachments?.length ? { attachments } : {}),
   };
 }

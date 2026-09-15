@@ -1,16 +1,19 @@
 import {
   Code2,
+  FileUp,
   Menu,
   Plus,
   Send,
   Settings,
   Square,
+  X,
 } from "lucide-react";
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
 } from "react";
 import MessageBubble from "./components/MessageBubble";
@@ -31,6 +34,7 @@ import {
 import type {
   ChatMessage,
   Conversation,
+  MessageAttachment,
   PublicApiConfig,
 } from "./types";
 
@@ -51,6 +55,8 @@ export default function App() {
   const [config, setConfig] = useState<PublicApiConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const openedSettingsRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -150,9 +156,30 @@ export default function App() {
     }
   };
 
+  const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    const next: MessageAttachment[] = [];
+    for (const file of files) {
+      if (file.size > 512 * 1024) {
+        continue;
+      }
+      try {
+        next.push({ name: file.name, content: await file.text() });
+      } catch {
+        // Unreadable or non-text files are ignored.
+      }
+    }
+    setAttachments((current) => [...current, ...next]);
+    event.target.value = "";
+  };
+
+  const removeAttachment = (name: string) => {
+    setAttachments((current) => current.filter((item) => item.name !== name));
+  };
+
   const handleSend = () => {
     const text = input.trim();
-    if (!text || isStreaming) {
+    if ((!text && attachments.length === 0) || isStreaming) {
       return;
     }
 
@@ -168,11 +195,16 @@ export default function App() {
       setActiveId(conversation.id);
     }
 
-    const userMessage = makeMessage("user", text, "done");
+    const userMessage = makeMessage(
+      "user",
+      text,
+      "done",
+      attachments.length ? attachments : undefined,
+    );
     const assistantMessage = makeMessage("assistant", "", "streaming");
     const title =
       conversation.messages.length === 0
-        ? text.slice(0, 32)
+        ? text.slice(0, 32) || attachments[0]?.name.slice(0, 32) || "新对话"
         : conversation.title;
     const history = [...conversation.messages, userMessage]
       .filter(
@@ -180,7 +212,7 @@ export default function App() {
           message.role === "user" ||
           (message.role === "assistant" && message.status === "done"),
       )
-      .map(({ role, content }) => ({ role, content }));
+      .map(messageToApiMessage);
 
     setConversations((current) =>
       current.map((item) =>
@@ -196,6 +228,7 @@ export default function App() {
     );
 
     setInput("");
+    setAttachments([]);
     setIsStreaming(true);
     void runGeneration(conversation.id, history, assistantMessage.id);
   };
@@ -386,35 +419,74 @@ export default function App() {
 
         <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 sm:px-5">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="flex items-end gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={Math.min(8, Math.max(1, input.split("\n").length))}
-                placeholder="描述你需要生成的 Python 功能..."
-                className="max-h-48 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-6 text-slate-800 outline-none placeholder:text-slate-400"
-              />
-              {isStreaming ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+              {attachments.length ? (
+                <div className="mb-2 flex flex-wrap gap-1.5 px-1">
+                  {attachments.map((attachment) => (
+                    <span
+                      key={attachment.name}
+                      className="flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                    >
+                      <FileUp className="h-3.5 w-3.5 text-blue-600" />
+                      {attachment.name}
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.name)}
+                        title="移除文件"
+                        className="ml-1 flex h-4 w-4 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".py,.txt,.csv,.json,.md,.js,.ts,.html,.css"
+                  className="hidden"
+                  onChange={handleFiles}
+                />
                 <button
                   type="button"
-                  onClick={stopGeneration}
-                  title="停止生成"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="导入文件"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-600"
                 >
-                  <Square className="h-4 w-4 fill-current" />
+                  <FileUp className="h-4 w-4" />
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={!input.trim()}
-                  title="发送"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              )}
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={Math.min(8, Math.max(1, input.split("\n").length))}
+                  placeholder="描述你需要生成的 Python 功能，或导入代码文件..."
+                  className="max-h-48 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-6 text-slate-800 outline-none placeholder:text-slate-400"
+                />
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={stopGeneration}
+                    title="停止生成"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100"
+                  >
+                    <Square className="h-4 w-4 fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={!input.trim() && attachments.length === 0}
+                    title="发送"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <p className="mt-1.5 text-center text-xs text-slate-400">
               Enter 发送，Shift + Enter 换行
@@ -461,6 +533,24 @@ function EmptyState({ onPick }: { onPick: (value: string) => void }) {
   );
 }
 
+function messageToApiMessage(message: ChatMessage): {
+  role: "user" | "assistant";
+  content: string;
+} {
+  if (message.role === "user" && message.attachments?.length) {
+    const blocks = message.attachments.map(
+      (attachment) => `附件：${attachment.name}
+${"```text"}
+${attachment.content}
+${"```"}`,
+    );
+    return {
+      role: "user",
+      content: [message.content, ...blocks].filter(Boolean).join("\n\n"),
+    };
+  }
+  return { role: message.role, content: message.content };
+}
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
