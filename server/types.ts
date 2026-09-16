@@ -4,6 +4,7 @@ export interface ApiConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  thinkingLevel: number;
   systemPrompt: string;
 }
 
@@ -18,6 +19,7 @@ export interface UpdateConfigRequest {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  thinkingLevel?: number;
   systemPrompt?: string;
 }
 
@@ -33,5 +35,6 @@ export interface ChatRequestMessage {
 
 export interface ChatStreamRequest {
   conversationId?: string;
+  thinkingLevel?: number;
   messages: ChatRequestMessage[];
 }

@@ -27,6 +27,7 @@ export interface PublicApiConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  thinkingLevel: number;
   systemPrompt: string;
   hasApiKey: boolean;
 }

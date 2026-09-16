@@ -11,6 +11,7 @@ import {
   mergeConfig,
   saveConfig,
   toPublicConfig,
+  toReasoningEffort,
 } from "./config.js";
 import {
   buildUpstreamMessages,
@@ -62,6 +63,7 @@ export function createApp() {
       }
 
       const config = loadConfig();
+      const thinkingLevel = parseThinkingLevel(req.body) ?? config.thinkingLevel;
       if (!config.baseUrl || !config.apiKey || !config.model) {
         return res.status(400).json({ error: "API 尚未配置完整" });
       }
@@ -85,6 +87,7 @@ export function createApp() {
               ),
               temperature: config.temperature,
               max_tokens: config.maxTokens,
+              reasoning_effort: toReasoningEffort(thinkingLevel),
               stream: true,
             }),
             signal: controller.signal,
@@ -114,7 +117,7 @@ export function createApp() {
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders?.();
 
-      sendSse(res, "meta", { model: config.model });
+      sendSse(res, "meta", { model: config.model, thinkingLevel });
 
       let finished = false;
       const finish = () => {
@@ -234,6 +237,13 @@ function parseChatMessages(
   }
 
   return messages.length > 0 ? messages : null;
+}
+
+function parseThinkingLevel(body: unknown): number | undefined {
+  if (!isObject(body) || typeof body.thinkingLevel !== "number") {
+    return undefined;
+  }
+  return Math.min(5, Math.max(1, Math.round(body.thinkingLevel)));
 }
 
 function parseDelta(data: string): string {

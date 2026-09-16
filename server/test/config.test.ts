@@ -34,6 +34,7 @@ describe("config module", () => {
       model: "test-model",
       temperature: 0.2,
       maxTokens: 4096,
+      thinkingLevel: 3,
       systemPrompt: "prompt",
     };
 
@@ -42,12 +43,20 @@ describe("config module", () => {
       apiKey: "",
       temperature: 5,
       maxTokens: 999999,
+      thinkingLevel: 9,
     });
 
     expect(updated.apiKey).toBe("sk-secret");
     expect(updated.model).toBe("new-model");
     expect(updated.temperature).toBe(2);
     expect(updated.maxTokens).toBe(200000);
+    expect(updated.thinkingLevel).toBe(5);
+  });
+
+  it("maps thinking levels to OpenAI-compatible reasoning effort", () => {
+    expect(config.toReasoningEffort(1)).toBe("low");
+    expect(config.toReasoningEffort(3)).toBe("medium");
+    expect(config.toReasoningEffort(5)).toBe("high");
   });
 
   it("clears the API key only when clearApiKey is true", () => {
@@ -57,6 +66,7 @@ describe("config module", () => {
       model: "test-model",
       temperature: 0.2,
       maxTokens: 4096,
+      thinkingLevel: 3,
       systemPrompt: "prompt",
     };
 
@@ -72,6 +82,7 @@ describe("config module", () => {
         model: "test-model",
         temperature: 0.4,
         maxTokens: 2048,
+        thinkingLevel: 4,
         systemPrompt: "custom prompt",
       }),
       "utf8",
@@ -80,11 +91,13 @@ describe("config module", () => {
     const loaded = config.loadConfig();
     expect(loaded.apiKey).toBe("sk-hidden");
     expect(loaded.temperature).toBe(0.4);
+    expect(loaded.thinkingLevel).toBe(4);
 
     await config.saveConfig({ ...loaded, model: "saved-model" });
     const publicConfig = config.toPublicConfig(config.loadConfig());
     expect(publicConfig.model).toBe("saved-model");
     expect(publicConfig.hasApiKey).toBe(true);
+    expect(publicConfig.thinkingLevel).toBe(4);
     expect("apiKey" in publicConfig).toBe(false);
   });
 

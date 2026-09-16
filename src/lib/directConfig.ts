@@ -8,6 +8,7 @@ interface DirectApiConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  thinkingLevel: number;
   systemPrompt: string;
 }
 
@@ -27,6 +28,7 @@ export function loadDirectConfig(): PublicApiConfig {
     model: "",
     temperature: 0.2,
     maxTokens: 4096,
+    thinkingLevel: 3,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     hasApiKey: false,
   };
@@ -46,6 +48,7 @@ export function loadDirectConfig(): PublicApiConfig {
       model: typeof parsed.model === "string" ? parsed.model : "",
       temperature: finiteNumber(parsed.temperature, 0.2),
       maxTokens: finiteNumber(parsed.maxTokens, 4096),
+      thinkingLevel: clampThinkingLevel(parsed.thinkingLevel),
       systemPrompt:
         typeof parsed.systemPrompt === "string" && parsed.systemPrompt.trim()
           ? parsed.systemPrompt
@@ -66,6 +69,7 @@ export function saveDirectConfig(form: ApiConfigForm): PublicApiConfig {
     model: form.model.trim(),
     temperature: form.temperature,
     maxTokens: form.maxTokens,
+    thinkingLevel: current.thinkingLevel,
     systemPrompt: form.systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT,
     apiKey: form.clearApiKey
       ? ""
@@ -78,9 +82,31 @@ export function saveDirectConfig(form: ApiConfigForm): PublicApiConfig {
     model: next.model,
     temperature: next.temperature,
     maxTokens: next.maxTokens,
+    thinkingLevel: next.thinkingLevel,
     systemPrompt: next.systemPrompt,
     hasApiKey: Boolean(next.apiKey),
   };
+}
+
+export function saveDirectThinkingLevel(level: number): PublicApiConfig {
+  const current = getDirectConfig();
+  const next: DirectApiConfig = {
+    ...current,
+    thinkingLevel: clampThinkingLevel(level),
+  };
+  window.localStorage.setItem(DIRECT_CONFIG_KEY, JSON.stringify(next));
+  return toPublicConfig(next);
+}
+
+export function reasoningEffortForLevel(level: number): "low" | "medium" | "high" {
+  const normalized = clampThinkingLevel(level);
+  if (normalized <= 2) {
+    return "low";
+  }
+  if (normalized === 3) {
+    return "medium";
+  }
+  return "high";
 }
 
 export function getDirectConfig(): DirectApiConfig {
@@ -90,6 +116,7 @@ export function getDirectConfig(): DirectApiConfig {
     model: "",
     temperature: 0.2,
     maxTokens: 4096,
+    thinkingLevel: 3,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
   };
 
@@ -110,4 +137,21 @@ export function getDirectConfig(): DirectApiConfig {
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function clampThinkingLevel(value: unknown): number {
+  const numeric = typeof value === "number" && Number.isFinite(value) ? value : 3;
+  return Math.min(5, Math.max(1, Math.round(numeric)));
+}
+
+function toPublicConfig(config: DirectApiConfig): PublicApiConfig {
+  return {
+    baseUrl: config.baseUrl,
+    model: config.model,
+    temperature: config.temperature,
+    maxTokens: config.maxTokens,
+    thinkingLevel: config.thinkingLevel,
+    systemPrompt: config.systemPrompt,
+    hasApiKey: Boolean(config.apiKey),
+  };
 }

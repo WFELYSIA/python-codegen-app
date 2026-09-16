@@ -18,6 +18,7 @@ export const DEFAULT_CONFIG: ApiConfig = {
   model: "",
   temperature: 0.2,
   maxTokens: 4096,
+  thinkingLevel: 3,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
 };
 
@@ -60,6 +61,11 @@ export function loadConfig(): ApiConfig {
       model: typeof parsed.model === "string" ? parsed.model : "",
       temperature: finiteNumber(parsed.temperature, DEFAULT_CONFIG.temperature),
       maxTokens: finiteNumber(parsed.maxTokens, DEFAULT_CONFIG.maxTokens),
+      thinkingLevel: clampInteger(
+        finiteNumber(parsed.thinkingLevel, DEFAULT_CONFIG.thinkingLevel),
+        1,
+        5,
+      ),
       systemPrompt:
         typeof parsed.systemPrompt === "string" && parsed.systemPrompt.trim()
           ? parsed.systemPrompt
@@ -84,6 +90,7 @@ export function toPublicConfig(config: ApiConfig): PublicApiConfig {
     model: config.model,
     temperature: config.temperature,
     maxTokens: config.maxTokens,
+    thinkingLevel: config.thinkingLevel,
     systemPrompt: config.systemPrompt,
     hasApiKey: Boolean(config.apiKey),
   };
@@ -107,6 +114,9 @@ export function mergeConfig(
   if (patch.maxTokens !== undefined) {
     next.maxTokens = clampInteger(patch.maxTokens, 1, 200000);
   }
+  if (patch.thinkingLevel !== undefined) {
+    next.thinkingLevel = clampInteger(patch.thinkingLevel, 1, 5);
+  }
   if (typeof patch.systemPrompt === "string" && patch.systemPrompt.trim()) {
     next.systemPrompt = patch.systemPrompt.trim();
   }
@@ -117,6 +127,17 @@ export function mergeConfig(
   }
 
   return next;
+}
+
+export function toReasoningEffort(level: number): "low" | "medium" | "high" {
+  const normalized = clampInteger(level, 1, 5);
+  if (normalized <= 2) {
+    return "low";
+  }
+  if (normalized === 3) {
+    return "medium";
+  }
+  return "high";
 }
 
 function finiteNumber(value: unknown, fallback: number): number {

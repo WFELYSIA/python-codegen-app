@@ -38,4 +38,5 @@ npm run typecheck
 
 - 对话历史保存在浏览器 `localStorage`，刷新页面后仍会保留。
 - API 地址和密钥保存在 `server/data/config.json`，该文件已被 `.gitignore` 忽略。
+- 对话输入区提供 1-5 级思考强度滑块，并映射为 OpenAI-compatible `reasoning_effort`（low/medium/high）。
 - 生成内容只用于展示、复制和下载，应用不提供代码执行功能。

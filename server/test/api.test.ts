@@ -23,11 +23,15 @@ describe("api routes", () => {
   let apiUrl = "";
   let upstreamUrl = "";
   let receivedAuthorization = "";
+  let receivedBody = "";
 
   beforeAll(async () => {
     upstreamServer = createServer((req, res) => {
       if (req.url === "/v1/chat/completions") {
         receivedAuthorization = req.headers.authorization ?? "";
+        req.on("data", (chunk) => {
+          receivedBody += chunk.toString();
+        });
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -75,6 +79,7 @@ describe("api routes", () => {
       systemPrompt: "test prompt",
     });
     receivedAuthorization = "";
+    receivedBody = "";
   });
 
   it("returns health and a masked config", async () => {
@@ -95,6 +100,7 @@ describe("api routes", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         conversationId: "test-conversation",
+        thinkingLevel: 5,
         messages: [{ role: "user", content: "hi" }],
       }),
     });
@@ -107,6 +113,7 @@ describe("api routes", () => {
     expect(body).toContain('"content":"\'hi\'"');
     expect(body).toContain("event: done");
     expect(receivedAuthorization).toBe("Bearer sk-test-secret");
+    expect(receivedBody).toContain('"reasoning_effort":"high"');
   });
 
   it("rejects a missing stream configuration", async () => {

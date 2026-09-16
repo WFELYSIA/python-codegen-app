@@ -23,6 +23,8 @@ import {
   getDirectConfig,
   isStaticDeploy,
   loadDirectConfig,
+  reasoningEffortForLevel,
+  saveDirectThinkingLevel,
 } from "./lib/directConfig";
 import { parseSseBuffer } from "./lib/sse";
 import {
@@ -177,6 +179,26 @@ export default function App() {
     setAttachments((current) => current.filter((item) => item.name !== name));
   };
 
+  const handleThinkingLevelChange = (value: number) => {
+    const nextLevel = Math.min(5, Math.max(1, Math.round(value)));
+    setConfig((current) =>
+      current ? { ...current, thinkingLevel: nextLevel } : current,
+    );
+
+    if (isStaticDeploy()) {
+      saveDirectThinkingLevel(nextLevel);
+      return;
+    }
+
+    void fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thinkingLevel: nextLevel }),
+    }).catch(() => {
+      // The current message still uses the local slider value.
+    });
+  };
+
   const handleSend = () => {
     const text = input.trim();
     if ((!text && attachments.length === 0) || isStreaming) {
@@ -230,13 +252,19 @@ export default function App() {
     setInput("");
     setAttachments([]);
     setIsStreaming(true);
-    void runGeneration(conversation.id, history, assistantMessage.id);
+    void runGeneration(
+      conversation.id,
+      history,
+      assistantMessage.id,
+      config?.thinkingLevel ?? 3,
+    );
   };
 
   const runGeneration = async (
     conversationId: string,
     history: { role: "user" | "assistant"; content: string }[],
     assistantId: string,
+    thinkingLevel: number,
   ) => {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -264,11 +292,19 @@ export default function App() {
 
     try {
       const response = isStaticDeploy()
-        ? await requestStaticStream(history, controller.signal)
+        ? await requestStaticStream(
+            history,
+            thinkingLevel,
+            controller.signal,
+          )
         : await fetch("/api/chat/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ conversationId, messages: history }),
+            body: JSON.stringify({
+              conversationId,
+              messages: history,
+              thinkingLevel,
+            }),
             signal: controller.signal,
           });
 
@@ -420,7 +456,26 @@ export default function App() {
         <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 sm:px-5">
           <div className="mx-auto w-full max-w-3xl">
             <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-              {attachments.length ? (
+              <div className="mb-2 flex items-center gap-3 px-1">
+                <span className="shrink-0 text-xs font-medium text-slate-500">
+                  思考强度
+                </span>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={config?.thinkingLevel ?? 3}
+                  onChange={(event) =>
+                    handleThinkingLevelChange(Number(event.target.value))
+                  }
+                  className="h-1.5 min-w-0 flex-1 cursor-pointer accent-blue-600"
+                  aria-label="思考强度"
+                />
+                <span className="w-8 shrink-0 text-right text-xs font-medium text-blue-700">
+                  {thinkingLevelLabel(config?.thinkingLevel ?? 3)}
+                </span>
+              </div>              {attachments.length ? (
                 <div className="mb-2 flex flex-wrap gap-1.5 px-1">
                   {attachments.map((attachment) => (
                     <span
@@ -551,12 +606,23 @@ ${"```"}`,
   }
   return { role: message.role, content: message.content };
 }
+function thinkingLevelLabel(level: number): string {
+  if (level <= 2) {
+    return "低";
+  }
+  if (level === 3) {
+    return "中";
+  }
+  return "高";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 async function requestStaticStream(
   history: { role: "user" | "assistant"; content: string }[],
+  thinkingLevel: number,
   signal: AbortSignal,
 ): Promise<Response> {
   const config = getDirectConfig();
@@ -579,6 +645,7 @@ async function requestStaticStream(
       ],
       temperature: config.temperature,
       max_tokens: config.maxTokens,
+      reasoning_effort: reasoningEffortForLevel(thinkingLevel),
       stream: true,
     }),
     signal,
