@@ -108,9 +108,10 @@ export function createApp() {
       }
 
       if (!upstreamResponse.body) {
-        return res.status(502).json({ error: "自定义 API 未返回流式响应" });
+        return res.status(502).json({ error: "自定义 API 未返回响应内容" });
       }
 
+      const upstreamContentType = upstreamResponse.headers.get("content-type") ?? "";
       res.status(200);
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -120,6 +121,27 @@ export function createApp() {
 
       sendSse(res, "meta", { model: config.model, thinkingLevel });
 
+      if (!upstreamContentType.includes("text/event-stream")) {
+        const rawBody = await upstreamResponse.text();
+        let payload: unknown = rawBody;
+        try {
+          payload = JSON.parse(rawBody);
+        } catch {
+          // Plain text is treated as response content.
+        }
+        const upstreamError = extractOpenAiError(payload);
+        const content = extractOpenAiDelta(payload);
+        if (upstreamError) {
+          sendSse(res, "error", { message: upstreamError });
+        } else if (content) {
+          sendSse(res, "delta", { content });
+          sendSse(res, "done", {});
+        } else {
+          sendSse(res, "error", { message: "自定义 API 返回了空响应" });
+        }
+        res.end();
+        return;
+      }
       let finished = false;
       const finish = () => {
         if (!finished) {

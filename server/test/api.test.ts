@@ -116,6 +116,45 @@ describe("api routes", () => {
     expect(receivedBody).toContain('"reasoning_effort":"high"');
   });
 
+  it("handles a non-SSE JSON upstream response", async () => {
+    const jsonServer = createServer((req, res) => {
+      req.on("data", () => undefined);
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            choices: [{ message: { content: "json response" } }],
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => {
+      jsonServer.listen(0, "127.0.0.1", resolve);
+    });
+    const address = jsonServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("failed to start JSON upstream server");
+    }
+
+    await request(apiServer).put("/api/config").send({
+      baseUrl: `http://127.0.0.1:${address.port}/v1`,
+      apiKey: "sk-test-secret",
+      model: "test-model",
+    });
+
+    const response = await fetch(`${apiUrl}/api/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    });
+    const body = await response.text();
+    expect(body).toContain('"content":"json response"');
+    expect(body).toContain("event: done");
+    jsonServer.close();
+  });
+
   it("rejects a missing stream configuration", async () => {
     rmSync(process.env.CONFIG_PATH ?? "", { force: true });
     vi.resetModules();
