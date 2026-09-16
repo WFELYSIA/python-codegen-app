@@ -12,6 +12,7 @@
 - Local mode keeps API keys on the server; GitHub Pages mode stores them in browser localStorage and requires the configured API to allow browser CORS.
 - The UI supports multi-turn conversation, streaming output, split code/explanation output, code copy/download, text-file import, and a 1-5 thinking-strength slider.
 - The thinking-strength slider is sent as OpenAI-compatible `reasoning_effort`: levels 1-2 map to low, 3 to medium, and 4-5 to high.
+- Assistant output uses a wider conversation area (`max-w-7xl`) and switches to side-by-side code/explanation columns at the `md` breakpoint so both panes remain usable on common desktop widths.
 - API requests target OpenAI-compatible `POST {baseUrl}/chat/completions` endpoints.
 - Response parsing accepts both SSE and non-SSE JSON, extracting `delta.content`, `message.content`, `reasoning_content`, `text`, or `output_text`; empty responses surface an explicit error instead of a blank message.
 

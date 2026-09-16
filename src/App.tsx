@@ -481,7 +481,7 @@ export default function App() {
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-5"
         >
-          <div className="mx-auto w-full max-w-3xl">
+          <div className="mx-auto w-full max-w-7xl">
             {!activeConversation || activeConversation.messages.length === 0 ? (
               <EmptyState onPick={setInput} />
             ) : (

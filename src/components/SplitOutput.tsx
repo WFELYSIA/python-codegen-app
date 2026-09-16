@@ -43,8 +43,8 @@ export default function SplitOutput({ content }: SplitOutputProps) {
   };
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <div className="flex h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-700 bg-[#0f172a] lg:h-[560px]">
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="flex h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-700 bg-[#0f172a] md:h-[520px] xl:h-[600px]">
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-700/70 px-3 text-slate-200">
           <FileCode2 className="h-4 w-4 text-blue-400" />
           <span className="text-sm font-medium">纯代码</span>
@@ -65,7 +65,7 @@ export default function SplitOutput({ content }: SplitOutputProps) {
         </div>
       </div>
 
-      <div className="flex h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:h-[560px]">
+      <div className="flex h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white md:h-[520px] xl:h-[600px]">
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-200 px-3 text-slate-700">
           <MessagesSquare className="h-4 w-4 text-emerald-600" />
           <span className="text-sm font-medium">中文解释</span>
