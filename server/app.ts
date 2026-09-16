@@ -17,6 +17,7 @@ import {
   buildUpstreamMessages,
   createSseParser,
   extractOpenAiDelta,
+  extractOpenAiError,
 } from "./sse.js";
 import type { ChatRequestMessage, ChatStreamRequest } from "./types.js";
 

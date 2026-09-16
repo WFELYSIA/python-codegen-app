@@ -68,6 +68,24 @@ export function createSseParser(): SseParser {
   };
 }
 
+export function extractOpenAiError(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const error = record.error;
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error && typeof error === "object") {
+    const message = (error as Record<string, unknown>).message;
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+  return null;
+}
+
 export function buildUpstreamMessages(
   systemPrompt: string,
   messages: ChatRequestMessage[],
@@ -86,9 +104,14 @@ export function extractOpenAiDelta(payload: unknown): string {
     return "";
   }
 
-  const choices = (payload as Record<string, unknown>).choices;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.content === "string") {
+    return record.content;
+  }
+
+  const choices = record.choices;
   if (!Array.isArray(choices) || choices.length === 0) {
-    return "";
+    return typeof record.output_text === "string" ? record.output_text : "";
   }
 
   const firstChoice = choices[0];
@@ -96,11 +119,30 @@ export function extractOpenAiDelta(payload: unknown): string {
     return "";
   }
 
-  const delta = (firstChoice as Record<string, unknown>).delta;
-  if (!delta || typeof delta !== "object") {
-    return "";
+  const choice = firstChoice as Record<string, unknown>;
+  const delta = choice.delta;
+  if (delta && typeof delta === "object") {
+    const deltaRecord = delta as Record<string, unknown>;
+    const deltaContent =
+      deltaRecord.content ?? deltaRecord.reasoning_content ?? deltaRecord.reasoning;
+    if (typeof deltaContent === "string") {
+      return deltaContent;
+    }
   }
 
-  const content = (delta as Record<string, unknown>).content;
-  return typeof content === "string" ? content : "";
+  const message = choice.message;
+  if (message && typeof message === "object") {
+    const messageRecord = message as Record<string, unknown>;
+    const messageContent =
+      messageRecord.content ?? messageRecord.reasoning_content ?? messageRecord.reasoning;
+    if (typeof messageContent === "string") {
+      return messageContent;
+    }
+  }
+
+  if (typeof choice.text === "string") {
+    return choice.text;
+  }
+
+  return typeof record.output_text === "string" ? record.output_text : "";
 }

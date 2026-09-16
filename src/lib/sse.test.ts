@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseSseBuffer } from "./sse";
+import {
+  extractOpenAiError,
+  extractOpenAiText,
+  parseSseBuffer,
+} from "./sse";
 
 describe("client SSE parser", () => {
   it("parses JSON event data and preserves incomplete trailing chunks", () => {
@@ -18,5 +22,13 @@ describe("client SSE parser", () => {
   it("keeps raw text when data is not JSON", () => {
     const result = parseSseBuffer("data: [DONE]\n\n");
     expect(result.events).toEqual([{ event: "message", data: "[DONE]" }]);
+  });
+
+  it("extracts common OpenAI-compatible response shapes", () => {
+    expect(extractOpenAiText({ choices: [{ message: { content: "hi" } }] })).toBe(
+      "hi",
+    );
+    expect(extractOpenAiText({ output_text: "plain" })).toBe("plain");
+    expect(extractOpenAiError({ error: { message: "bad" } })).toBe("bad");
   });
 });

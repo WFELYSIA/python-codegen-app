@@ -3,6 +3,7 @@ import {
   buildUpstreamMessages,
   createSseParser,
   extractOpenAiDelta,
+  extractOpenAiError,
 } from "../sse.js";
 
 describe("sse helpers", () => {
@@ -29,6 +30,13 @@ describe("sse helpers", () => {
     ).toBe("print(1)");
     expect(extractOpenAiDelta({ choices: [{ delta: {} }] })).toBe("");
     expect(extractOpenAiDelta(null)).toBe("");
+    expect(
+      extractOpenAiDelta({ choices: [{ message: { content: "hello" } }] }),
+    ).toBe("hello");
+    expect(extractOpenAiDelta({ output_text: "plain" })).toBe("plain");
+    expect(extractOpenAiError({ error: { message: "bad request" } })).toBe(
+      "bad request",
+    );
   });
 
   it("prepends the system prompt to chat history", () => {

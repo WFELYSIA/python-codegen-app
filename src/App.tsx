@@ -26,7 +26,11 @@ import {
   reasoningEffortForLevel,
   saveDirectThinkingLevel,
 } from "./lib/directConfig";
-import { parseSseBuffer } from "./lib/sse";
+import {
+  extractOpenAiError,
+  extractOpenAiText,
+  parseSseBuffer,
+} from "./lib/sse";
 import {
   loadConversations,
   makeConversation,
@@ -269,8 +273,10 @@ export default function App() {
     const controller = new AbortController();
     abortRef.current = controller;
     let buffer = "";
+    let receivedContent = false;
 
     const append = (content: string) => {
+      receivedContent = true;
       updateMessage(conversationId, assistantId, (message) => ({
         ...message,
         content: message.content + content,
@@ -278,15 +284,22 @@ export default function App() {
     };
 
     const handleEvent = (event: string, data: unknown) => {
-      if (event === "delta" && isRecord(data) && typeof data.content === "string") {
-        append(data.content);
-      }
       if (event === "error") {
         const message =
           isRecord(data) && typeof data.message === "string"
             ? data.message
             : "生成失败";
         throw new Error(message);
+      }
+
+      const upstreamError = extractOpenAiError(data);
+      if (upstreamError) {
+        throw new Error(upstreamError);
+      }
+
+      const content = extractOpenAiText(data);
+      if (content) {
+        append(content);
       }
     };
 
@@ -309,14 +322,39 @@ export default function App() {
           });
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(payload?.error ?? `请求失败（${response.status}）`);
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          extractOpenAiError(payload) ?? `请求失败（${response.status}）`,
+        );
       }
 
       if (!response.body) {
-        throw new Error("未收到流式响应");
+        throw new Error("未收到响应内容");
+      }
+
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/event-stream")) {
+        const rawBody = await response.text();
+        let payload: unknown = rawBody;
+        try {
+          payload = JSON.parse(rawBody);
+        } catch {
+          // Plain text responses are treated as content.
+        }
+        const upstreamError = extractOpenAiError(payload);
+        if (upstreamError) {
+          throw new Error(upstreamError);
+        }
+        const content = extractOpenAiText(payload);
+        if (!content) {
+          throw new Error("API 返回了空响应");
+        }
+        append(content);
+        updateMessage(conversationId, assistantId, (message) => ({
+          ...message,
+          status: "done",
+        }));
+        return;
       }
 
       const reader = response.body.getReader();
@@ -337,6 +375,10 @@ export default function App() {
 
       for (const item of parseSseBuffer(buffer).events) {
         handleEvent(item.event, item.data);
+      }
+
+      if (!receivedContent) {
+        throw new Error("API 返回了空响应");
       }
 
       updateMessage(conversationId, assistantId, (message) => ({
@@ -367,7 +409,6 @@ export default function App() {
       setIsStreaming(false);
     }
   };
-
   const stopGeneration = () => {
     abortRef.current?.abort();
   };
